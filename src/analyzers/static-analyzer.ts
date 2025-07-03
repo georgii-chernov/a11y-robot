@@ -1,4 +1,4 @@
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import * as path from 'path';
 import { glob } from 'glob';
 import * as cheerio from 'cheerio';
@@ -9,9 +9,15 @@ export class StaticAnalyzer {
   private readonly defaultIncludePatterns = ['**/*.ts', '**/*.html', '**/*.scss', '**/*.css'];
   private readonly defaultExcludePatterns = ['node_modules/**', 'dist/**', '**/*.spec.ts', '**/*.test.ts'];
 
-  async analyze(options: StaticAnalysisOptions): Promise<AnalysisResult> {
+  async analyze(
+    options: StaticAnalysisOptions,
+    logCollector?: string[]
+  ): Promise<AnalysisResult> {
     try {
       logger.info(`Starting static analysis of: ${options.projectPath}`);
+      if (logCollector) logCollector.push(`Starting static analysis of: ${options.projectPath}`);
+
+      if (logCollector) logCollector.push(`ProjectPath ${options.projectPath}`);
 
       const includePatterns = options.includePatterns || this.defaultIncludePatterns;
       const excludePatterns = options.excludePatterns || this.defaultExcludePatterns;
@@ -19,12 +25,15 @@ export class StaticAnalyzer {
       // Find all relevant files
       const files = await this.findFiles(options.projectPath, includePatterns, excludePatterns);
       logger.info(`Found ${files.length} files to analyze`);
+      if (logCollector) logCollector.push(`Found ${files.length} files to analyze`);
 
       // Analyze files
       const allIssues: AccessibilityIssue[] = [];
       
       for (const filePath of files) {
-        const fileIssues = await this.analyzeFile(filePath, options.projectPath);
+        if (logCollector) logCollector.push(`Analyzing file: ${filePath}`);
+        const fileIssues = await this.analyzeFile(filePath, options.projectPath, logCollector);
+        if (logCollector) logCollector.push(`Found ${fileIssues.length} issues in ${filePath}`);
         allIssues.push(...fileIssues);
       }
 
@@ -40,10 +49,12 @@ export class StaticAnalyzer {
       };
 
       logger.info(`Static analysis completed. Found ${allIssues.length} issues.`);
+      if (logCollector) logCollector.push(`Static analysis completed. Found ${allIssues.length} issues.`);
       return result;
 
     } catch (error) {
       logger.error('Static analysis failed:', error);
+      if (logCollector) logCollector.push(`Static analysis failed: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
   }
@@ -64,32 +75,45 @@ export class StaticAnalyzer {
     return [...new Set(allFiles)];
   }
 
-  private async analyzeFile(filePath: string, projectPath: string): Promise<AccessibilityIssue[]> {
+  private async analyzeFile(
+    filePath: string,
+    projectPath: string,
+    logCollector?: string[]
+  ): Promise<AccessibilityIssue[]> {
     try {
       const relativePath = path.relative(projectPath, filePath);
       const extension = path.extname(filePath).toLowerCase();
       const content = await fs.readFile(filePath, 'utf8');
+      if (logCollector) logCollector.push(`Analyzing as ${extension} file: ${relativePath}`);
 
       switch (extension) {
         case '.html':
-          return this.analyzeHtmlTemplate(content, relativePath);
+          return this.analyzeHtmlTemplate(content, relativePath, logCollector);
         case '.ts':
-          return this.analyzeTypeScriptFile(content, relativePath);
+          return this.analyzeTypeScriptFile(content, relativePath, logCollector);
         case '.scss':
         case '.css':
-          return this.analyzeCssFile(content, relativePath);
+          return this.analyzeCssFile(content, relativePath, logCollector);
         default:
+          if (logCollector) logCollector.push(`Skipped unsupported file type: ${relativePath}`);
           return [];
       }
     } catch (error) {
       logger.warn(`Failed to analyze file ${filePath}:`, error);
+      if (logCollector) logCollector.push(`Failed to analyze file ${filePath}: ${error instanceof Error ? error.message : String(error)}`);
       return [];
     }
   }
 
-  private analyzeHtmlTemplate(content: string, filePath: string): AccessibilityIssue[] {
+  private analyzeHtmlTemplate(
+    content: string,
+    filePath: string,
+    logCollector?: string[]
+  ): AccessibilityIssue[] {
     const issues: AccessibilityIssue[] = [];
     const $ = cheerio.load(content);
+
+    if (logCollector) logCollector.push(`Analyzing HTML template: ${filePath}`);
 
     // Check for images without alt attributes
     $('img').each((index, element) => {
@@ -98,6 +122,7 @@ export class StaticAnalyzer {
       const src = $img.attr('src');
 
       if (alt === undefined) {
+        if (logCollector) logCollector.push(`Image without alt attribute found in ${filePath} (src: ${src || 'N/A'})`);
         issues.push({
           id: `img-alt-${index}`,
           rule: 'Images must have alt attributes',
@@ -130,6 +155,7 @@ export class StaticAnalyzer {
       }
 
       if (!hasLabel && !ariaLabel && !ariaLabelledby) {
+        if (logCollector) logCollector.push(`Form input without label found in ${filePath} (<${type}>)`);
         issues.push({
           id: `input-label-${index}`,
           rule: 'Form inputs must have labels',
@@ -156,6 +182,7 @@ export class StaticAnalyzer {
       const currentLevel = parseInt(tagName.charAt(1));
       
       if (currentLevel > previousLevel + 1) {
+        if (logCollector) logCollector.push(`Heading hierarchy issue in ${filePath}: <${tagName}> skips from h${previousLevel} to h${currentLevel}`);
         issues.push({
           id: `heading-hierarchy-${index}`,
           rule: 'Heading levels should not be skipped',
@@ -178,16 +205,24 @@ export class StaticAnalyzer {
     return issues;
   }
 
-  private analyzeTypeScriptFile(content: string, filePath: string): AccessibilityIssue[] {
+  private analyzeTypeScriptFile(
+    content: string,
+    filePath: string,
+    logCollector?: string[]
+  ): AccessibilityIssue[] {
     const issues: AccessibilityIssue[] = [];
+
+    if (logCollector) logCollector.push(`Analyzing TypeScript file: ${filePath}`);
 
     // Check for Angular component template accessibility
     if (this.isAngularComponent(content)) {
+      if (logCollector) logCollector.push(`Detected Angular component in ${filePath}`);
       // Look for inline templates
       const templateMatch = content.match(/template\s*:\s*`([^`]*)`/s);
       if (templateMatch) {
+        if (logCollector) logCollector.push(`Found inline template in ${filePath}`);
         const templateContent = templateMatch[1];
-        const templateIssues = this.analyzeHtmlTemplate(templateContent, filePath);
+        const templateIssues = this.analyzeHtmlTemplate(templateContent, filePath, logCollector);
         issues.push(...templateIssues);
       }
 
@@ -196,6 +231,7 @@ export class StaticAnalyzer {
       if (ngForMatches) {
         ngForMatches.forEach((match, index) => {
           if (!match.includes('trackBy')) {
+            if (logCollector) logCollector.push(`*ngFor without trackBy found in ${filePath}: ${match}`);
             issues.push({
               id: `ngfor-trackby-${index}`,
               rule: '*ngFor should use trackBy for performance and accessibility',
@@ -217,8 +253,14 @@ export class StaticAnalyzer {
     return issues;
   }
 
-  private analyzeCssFile(content: string, filePath: string): AccessibilityIssue[] {
+  private analyzeCssFile(
+    content: string,
+    filePath: string,
+    logCollector?: string[]
+  ): AccessibilityIssue[] {
     const issues: AccessibilityIssue[] = [];
+
+    if (logCollector) logCollector.push(`Analyzing CSS/SCSS file: ${filePath}`);
 
     // Check for focus indicators
     const focusSelectors = [':focus', ':focus-visible', ':focus-within'];
@@ -227,6 +269,7 @@ export class StaticAnalyzer {
     if (!hasFocusStyles && content.includes('outline')) {
       const outlineNoneMatches = content.match(/outline\s*:\s*none/g);
       if (outlineNoneMatches) {
+        if (logCollector) logCollector.push(`Found outline: none without alternative focus style in ${filePath}`);
         issues.push({
           id: 'outline-none-focus',
           rule: 'Do not remove focus indicators without replacement',
@@ -278,4 +321,4 @@ export class StaticAnalyzer {
 
     return summary;
   }
-} 
+}

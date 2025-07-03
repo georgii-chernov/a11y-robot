@@ -35,7 +35,8 @@ export class A11yRobotServer {
     try {
       logger.info(`Starting static accessibility analysis for: ${options.projectPath}`);
       
-      const result = await this.staticAnalyzer.analyze(options);
+      const logCollector: string[] = [];
+      const result = await this.staticAnalyzer.analyze(options, logCollector);
       this.analysisResults.push(result);
       
       const summary = this.formatAnalysisSummary(result);
@@ -47,6 +48,10 @@ export class A11yRobotServer {
           {
             type: 'text',
             text: summary,
+          },
+          {
+            type: 'text',
+            text: `# Detailed Analysis Log\n\n${logCollector.join('\n')}`,
           },
         ],
       };
@@ -222,4 +227,4 @@ Run 'generate_accessibility_report' to create a detailed HTML report with all fi
       minor: issues.filter(i => i.severity === 'minor').length,
     };
   }
-} 
+}

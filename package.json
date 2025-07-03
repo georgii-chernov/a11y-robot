@@ -1,0 +1,43 @@
+{
+  "name": "a11y-robot",
+  "version": "1.0.0",
+  "description": "MCP server tool for accessibility testing of Angular/TypeScript applications",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts"
+  },
+  "keywords": ["mcp", "accessibility", "a11y", "angular", "typescript", "wcag"],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.4.0",
+    "playwright": "^1.40.0",
+    "axe-core": "^4.8.3",
+    "typescript": "^5.3.3",
+    "cheerio": "^1.0.0-rc.12",
+    "axios": "^1.6.2",
+    "fs-extra": "^11.2.0",
+    "glob": "^10.3.10",
+    "yargs": "^17.7.2",
+    "chalk": "^5.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "@types/fs-extra": "^11.0.4",
+    "@types/yargs": "^17.0.32",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "eslint": "^8.56.0",
+    "jest": "^29.7.0",
+    "@types/jest": "^29.5.8",
+    "ts-jest": "^29.1.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+} 

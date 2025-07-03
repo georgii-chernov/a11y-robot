@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "A11yRobot": {
+      "command": "node",
+      "args": ["/dist/index.js"]
+    }
+  }
+}
